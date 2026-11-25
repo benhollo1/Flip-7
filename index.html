@@ -81,7 +81,8 @@ th { font-weight: 700; font-size: 13px; }
 .plist .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .rules { color: var(--muted); font-size: 14px; display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; }
 button[aria-pressed="true"] { background: var(--good); color: var(--accent-ink); border-color: var(--good); }
-.banner button { margin-top: 8px; background: #1c1600; color: #fff; border-color: #1c1600; }
+.bbtns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.banner button {  background: #1c1600; color: #fff; border-color: #1c1600; }
 .msg { color: var(--accent); font-size: 14px; min-height: 0; }
 @media (prefers-reduced-motion: no-preference) { .bar i { transition: width 0.3s ease; } }
 </style>
@@ -129,7 +130,7 @@ button[aria-pressed="true"] { background: var(--good); color: var(--accent-ink);
     var msg = leaders.length === 1
       ? esc(state.players[leaders[0]]) + " wins with " + max + "."
       : "Tied on " + max + ". Play another round to break the tie.";
-    var btn = leaders.length === 1 ? '<br><button type="button" data-act="newgame">New game</button>' : "";
+    var btn = leaders.length === 1 ? '<div class="bbtns"><button type="button" data-act="newgame">New game</button><button type="button" data-act="newplayers">New players</button></div>' : "";
     return '<div class="banner" role="status">' + msg + btn + "</div>";
   }
 
@@ -176,7 +177,7 @@ button[aria-pressed="true"] { background: var(--good); color: var(--accent-ink);
       }).join("") + '</div>' +
       '<div class="actions"><button type="button" data-act="addplayer"' + (state.players.length >= 12 ? " disabled" : "") + '>Add player</button><button type="button" class="primary" data-act="done">Done</button></div>' +
       '<div class="sub">Players can only be removed before the first round is scored.</div>' +
-      '<hr style="border:0;border-top:1px solid var(--line);width:100%"><div class="actions"><button type="button" data-act="newgame">New game, same players</button></div></section>';
+      '<hr style="border:0;border-top:1px solid var(--line);width:100%"><div class="actions"><button type="button" data-act="newgame">New game, same players</button><button type="button" data-act="newplayers">New game, new players</button></div></section>';
   }
 
   var app = document.getElementById("app");
@@ -239,6 +240,10 @@ button[aria-pressed="true"] { background: var(--good); color: var(--accent-ink);
     else if (act === "addplayer") { state.players.push("Player " + (state.players.length + 1)); save(); render(); }
     else if (act === "remove") { state.players.splice(i, 1); clearDraft(); save(); render(); }
     else if (act === "done") { editing = false; render(); }
+    else if (act === "newplayers") {
+      if (b.dataset.armed) { state.players = ["Player 1", "Player 2", "Player 3"]; state.rounds = []; clearDraft(); editing = true; save(); render(); window.scrollTo(0, 0); }
+      else { b.dataset.armed = "1"; b.textContent = "Tap again to clear scores and players"; }
+    }
     else if (act === "newgame") {
       if (b.dataset.armed) { state.rounds = []; clearDraft(); editing = false; save(); render(); window.scrollTo(0, 0); }
       else { b.dataset.armed = "1"; b.textContent = "Tap again to clear all scores"; }
