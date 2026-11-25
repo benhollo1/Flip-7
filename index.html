@@ -80,6 +80,9 @@ th { font-weight: 700; font-size: 13px; }
 .plist { display: flex; flex-direction: column; gap: 8px; }
 .plist .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .rules { color: var(--muted); font-size: 14px; display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; }
+button[aria-pressed="true"] { background: var(--good); color: var(--accent-ink); border-color: var(--good); }
+.banner button { margin-top: 8px; background: #1c1600; color: #fff; border-color: #1c1600; }
+.msg { color: var(--accent); font-size: 14px; min-height: 0; }
 @media (prefers-reduced-motion: no-preference) { .bar i { transition: width 0.3s ease; } }
 </style>
 </head>
@@ -94,15 +97,18 @@ th { font-weight: 700; font-size: 13px; }
 <script>
 (function () {
   var KEY = "flip7-state-v1";
-  var BONUS = 15;
-  var state = { players: ["Player 1", "Player 2", "Player 3"], rounds: [], target: 200 };
-  var draft = [];
+  var BONUS = 15, MAX_ROUND = 300;
+  var state = { players: ["Player 1", "Player 2", "Player 3"], rounds: [], target: 200, draft: { v: [], b: [] } };
   var editing = false;
 
   try {
     var saved = JSON.parse(localStorage.getItem(KEY));
-    if (saved && Array.isArray(saved.players) && Array.isArray(saved.rounds) && saved.players.length >= 2) state = saved;
+    if (saved && Array.isArray(saved.players) && Array.isArray(saved.rounds) && saved.players.length >= 2) {
+      state = saved;
+      if (!state.target) state.target = 200;
+    }
   } catch (e) {}
+  if (!state.draft || !Array.isArray(state.draft.v) || !Array.isArray(state.draft.b)) state.draft = { v: [], b: [] };
 
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -111,15 +117,20 @@ th { font-weight: 700; font-size: 13px; }
       return state.rounds.reduce(function (a, r) { return a + (r[i] || 0); }, 0);
     });
   }
-  function parseScore(v) { var n = parseInt(v, 10); return isNaN(n) || n < 0 ? 0 : n; }
+  function parseScore(v) { var n = parseInt(v, 10); return isNaN(n) || n < 0 ? 0 : Math.min(n, MAX_ROUND); }
+  function clearDraft() { state.draft = { v: [], b: [] }; }
+  function bonusLabel(i) { return state.draft.b[i] ? "Bonus added, tap to remove" : "Flip 7 bonus +" + BONUS; }
 
   function banner(t) {
     var max = Math.max.apply(null, t);
     if (state.rounds.length === 0 || max < state.target) return "";
     var leaders = [];
     t.forEach(function (v, i) { if (v === max) leaders.push(i); });
-    if (leaders.length === 1) return '<div class="banner">' + esc(state.players[leaders[0]]) + " wins with " + max + ". Start a new game when you are ready.</div>";
-    return '<div class="banner">Tied on ' + max + ". Play another round to break the tie.</div>";
+    var msg = leaders.length === 1
+      ? esc(state.players[leaders[0]]) + " wins with " + max + "."
+      : "Tied on " + max + ". Play another round to break the tie.";
+    var btn = leaders.length === 1 ? '<br><button type="button" data-act="newgame">New game</button>' : "";
+    return '<div class="banner" role="status">' + msg + btn + "</div>";
   }
 
   function boardHtml(t) {
@@ -128,17 +139,18 @@ th { font-weight: 700; font-size: 13px; }
       state.players.map(function (p, i) {
         var pct = Math.min(100, Math.round((t[i] / state.target) * 100));
         var lead = state.rounds.length > 0 && t[i] === max && max > 0;
-        return '<div class="player' + (lead ? " lead" : "") + '"><div class="name">' + esc(p) + '</div><div class="total">' + t[i] + '</div><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + state.target + '" aria-valuenow="' + t[i] + '"><i style="width:' + pct + '%"></i></div></div>';
+        return '<div class="player' + (lead ? " lead" : "") + '"><div class="name">' + esc(p) + '</div><div class="total">' + t[i] + '</div><div class="bar" role="progressbar" aria-label="' + esc(p) + ' progress" aria-valuemin="0" aria-valuemax="' + state.target + '" aria-valuenow="' + t[i] + '"><i style="width:' + pct + '%"></i></div></div>';
       }).join("") + "</section>";
   }
 
   function entryHtml() {
-    return '<section class="card" aria-label="Add round"><h2>Round ' + (state.rounds.length + 1) + '</h2><div class="sub">Enter each player\'s score for the round. Leave blank for a bust.</div>' +
+    return '<section class="card" aria-label="Add round"><h2>Round ' + (state.rounds.length + 1) + '</h2><div class="sub">Enter each player\'s score for the round. A bust scores 0.</div>' +
       state.players.map(function (p, i) {
         return '<div class="entry-row"><label class="name" for="s' + i + '">' + esc(p) + '</label>' +
-          '<input id="s' + i + '" data-i="' + i + '" type="number" inputmode="numeric" min="0" placeholder="0" value="' + esc(draft[i] || "") + '">' +
-          '<div class="chips"><button type="button" data-act="bust" data-i="' + i + '">Bust (0)</button><button type="button" data-act="bonus" data-i="' + i + '">Flip 7 bonus +' + BONUS + '</button></div></div>';
+          '<input id="s' + i + '" data-i="' + i + '" type="number" inputmode="numeric" enterkeyhint="next" min="0" max="' + MAX_ROUND + '" placeholder="0" value="' + esc(state.draft.v[i] || "") + '">' +
+          '<div class="chips"><button type="button" data-act="bust" data-i="' + i + '">Bust (0)</button><button type="button" id="b' + i + '" data-act="bonus" data-i="' + i + '" aria-pressed="' + (state.draft.b[i] ? "true" : "false") + '">' + bonusLabel(i) + '</button></div></div>';
       }).join("") +
+      '<div id="msg" class="msg" role="alert"></div>' +
       '<div class="actions"><button type="button" class="primary" data-act="add">Add round</button><button type="button" data-act="undo"' + (state.rounds.length ? "" : " disabled") + '>Undo last round</button></div></section>';
   }
 
@@ -152,7 +164,7 @@ th { font-weight: 700; font-size: 13px; }
   }
 
   function rulesHtml() {
-    return '<section class="card"><h2>Scoring reminder</h2><ul class="rules"><li>Add up your number cards.</li><li>A x2 card doubles the number card total only.</li><li>Then add any +2, +4, +6, +8 or +10 cards.</li><li>Seven different number cards earns +' + BONUS + '.</li><li>A bust scores 0.</li></ul></section>';
+    return '<section class="card"><h2>Scoring reminder</h2><ul class="rules"><li>Add up your number cards.</li><li>A x2 card doubles the number card total only.</li><li>Then add any +2, +4, +6, +8 or +10 cards.</li><li>Seven different number cards earns +' + BONUS + '.</li><li>A bust scores 0.</li><li>The game ends when someone reaches ' + state.target + '. Ties at the top play another round.</li></ul></section>';
   }
 
   function playersHtml() {
@@ -175,28 +187,60 @@ th { font-weight: 700; font-size: 13px; }
     app.innerHTML = banner(t) + boardHtml(t) + entryHtml() + historyHtml() + rulesHtml();
   }
 
+  function setBonusButton(i) {
+    var bb = document.getElementById("b" + i);
+    if (!bb) return;
+    bb.textContent = bonusLabel(i);
+    bb.setAttribute("aria-pressed", state.draft.b[i] ? "true" : "false");
+  }
+
   app.addEventListener("input", function (e) {
     var el = e.target;
-    if (el.dataset.i !== undefined && el.type === "number") draft[+el.dataset.i] = el.value;
-    if (el.dataset.name !== undefined) { state.players[+el.dataset.name] = el.value || "Player " + (+el.dataset.name + 1); save(); }
+    if (el.dataset.i !== undefined && el.type === "number") { state.draft.v[+el.dataset.i] = el.value; save(); }
+    if (el.dataset.name !== undefined) { state.players[+el.dataset.name] = el.value.trim() || "Player " + (+el.dataset.name + 1); save(); }
+  });
+
+  app.addEventListener("change", function (e) {
+    var el = e.target;
+    if (el.dataset.name !== undefined && !el.value.trim()) el.value = state.players[+el.dataset.name];
+  });
+
+  app.addEventListener("keydown", function (e) {
+    var el = e.target;
+    if (e.key === "Enter" && el.dataset.i !== undefined && el.type === "number") {
+      e.preventDefault();
+      var next = document.getElementById("s" + (+el.dataset.i + 1));
+      if (next) next.focus(); else el.blur();
+    }
   });
 
   app.addEventListener("click", function (e) {
     var b = e.target.closest("button");
     if (!b || !b.dataset.act) return;
     var i = +b.dataset.i, act = b.dataset.act;
-    if (act === "bust") { draft[i] = "0"; document.getElementById("s" + i).value = "0"; }
-    else if (act === "bonus") { var v = parseScore(draft[i]) + BONUS; draft[i] = String(v); document.getElementById("s" + i).value = v; }
+    if (act === "bust") {
+      state.draft.v[i] = "0"; state.draft.b[i] = false;
+      document.getElementById("s" + i).value = "0"; setBonusButton(i); save();
+    }
+    else if (act === "bonus") {
+      var cur = parseScore(state.draft.v[i]);
+      if (state.draft.b[i]) { cur = Math.max(0, cur - BONUS); state.draft.b[i] = false; }
+      else { cur = Math.min(MAX_ROUND, cur + BONUS); state.draft.b[i] = true; }
+      state.draft.v[i] = String(cur);
+      document.getElementById("s" + i).value = cur; setBonusButton(i); save();
+    }
     else if (act === "add") {
-      state.rounds.push(state.players.map(function (_, k) { return parseScore(draft[k]); }));
-      draft = []; save(); render(); window.scrollTo(0, 0);
+      var any = state.players.some(function (_, k) { var v = state.draft.v[k]; return v !== undefined && v !== ""; });
+      if (!any) { document.getElementById("msg").textContent = "Enter at least one score first. Use Bust (0) for a bust."; return; }
+      state.rounds.push(state.players.map(function (_, k) { return parseScore(state.draft.v[k]); }));
+      clearDraft(); save(); render(); window.scrollTo(0, 0);
     }
     else if (act === "undo") { state.rounds.pop(); save(); render(); }
     else if (act === "addplayer") { state.players.push("Player " + (state.players.length + 1)); save(); render(); }
-    else if (act === "remove") { state.players.splice(i, 1); draft = []; save(); render(); }
+    else if (act === "remove") { state.players.splice(i, 1); clearDraft(); save(); render(); }
     else if (act === "done") { editing = false; render(); }
     else if (act === "newgame") {
-      if (b.dataset.armed) { state.rounds = []; draft = []; editing = false; save(); render(); }
+      if (b.dataset.armed) { state.rounds = []; clearDraft(); editing = false; save(); render(); window.scrollTo(0, 0); }
       else { b.dataset.armed = "1"; b.textContent = "Tap again to clear all scores"; }
     }
   });
