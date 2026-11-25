@@ -26,6 +26,7 @@
   --accent-ink: #ffffff;
   --good: #1f8a70;
   --gold: #f2b705;
+  --c0: #2563eb; --c1: #e4572e; --c2: #1f8a70; --c3: #8b5cf6; --c4: #b7791f; --c5: #d6336c; --c6: #475569; --c7: #0891b2;
   --font-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
   --font-body: "DM Sans", "Segoe UI", sans-serif;
 }
@@ -33,12 +34,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0f1722; --surface: #19232f; --ink: #eef2f6; --muted: #98a4b5;
     --line: #2b3847; --accent: #ff7a50; --accent-ink: #14100d; --good: #46c2a1; --gold: #f5c542;
+    --c0: #6ea0ff; --c1: #ff7a50; --c2: #46c2a1; --c3: #b69cff; --c4: #f5c542; --c5: #ff7ba6; --c6: #a9b6c8; --c7: #4cc9e0;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0f1722; --surface: #19232f; --ink: #eef2f6; --muted: #98a4b5;
   --line: #2b3847; --accent: #ff7a50; --accent-ink: #14100d; --good: #46c2a1; --gold: #f5c542;
+  --c0: #6ea0ff; --c1: #ff7a50; --c2: #46c2a1; --c3: #b69cff; --c4: #f5c542; --c5: #ff7ba6; --c6: #a9b6c8; --c7: #4cc9e0;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -64,7 +67,6 @@ input { font: inherit; font-size: 16px; color: var(--ink); background: var(--bg)
 .player.lead .name::after { content: " leading"; color: var(--good); font-weight: 500; font-size: 13px; }
 .bar { grid-column: 1 / -1; height: 8px; border-radius: 99px; background: var(--bg); overflow: hidden; border: 1px solid var(--line); }
 .bar i { display: block; height: 100%; background: var(--accent); }
-.player.lead .bar i { background: var(--good); }
 .entry-row { display: grid; grid-template-columns: 1fr 96px; gap: 8px; align-items: center; }
 .entry-row .name { font-weight: 500; overflow-wrap: anywhere; }
 .entry-row .chips { grid-column: 1 / -1; display: flex; gap: 8px; }
@@ -84,6 +86,17 @@ button[aria-pressed="true"] { background: var(--good); color: var(--accent-ink);
 .bbtns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .banner button {  background: #1c1600; color: #fff; border-color: #1c1600; }
 .msg { color: var(--accent); font-size: 14px; min-height: 0; }
+.stats { grid-column: 1 / -1; color: var(--muted); font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+.seg { display: flex; gap: 8px; }
+.seg button { flex: 1; min-height: 40px; font-size: 14px; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .tick { fill: var(--muted); font-size: 10px; font-family: var(--font-body); font-variant-numeric: tabular-nums; }
+.chart .target { stroke: var(--muted); stroke-width: 1.25; stroke-dasharray: 5 4; }
+.chart .line { fill: none; stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.legend i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
 @media (prefers-reduced-motion: no-preference) { .bar i { transition: width 0.3s ease; } }
 </style>
 </head>
@@ -140,8 +153,91 @@ button[aria-pressed="true"] { background: var(--good); color: var(--accent-ink);
       state.players.map(function (p, i) {
         var pct = Math.min(100, Math.round((t[i] / state.target) * 100));
         var lead = state.rounds.length > 0 && t[i] === max && max > 0;
-        return '<div class="player' + (lead ? " lead" : "") + '"><div class="name">' + esc(p) + '</div><div class="total">' + t[i] + '</div><div class="bar" role="progressbar" aria-label="' + esc(p) + ' progress" aria-valuemin="0" aria-valuemax="' + state.target + '" aria-valuenow="' + t[i] + '"><i style="width:' + pct + '%"></i></div></div>';
+        return '<div class="player' + (lead ? " lead" : "") + '"><div class="name">' + esc(p) + '</div><div class="total">' + t[i] + '</div><div class="bar" role="progressbar" aria-label="' + esc(p) + ' progress" aria-valuemin="0" aria-valuemax="' + state.target + '" aria-valuenow="' + t[i] + '"><i style="width:' + pct + '%;background:var(--c' + (i % 8) + ')"></i></div>' + statsHtml(t, i, max) + '</div>';
       }).join("") + "</section>";
+  }
+
+
+  function fmt(x) { return String(Math.round(x * 10) / 10); }
+  function statsHtml(t, i, max) {
+    var n = state.rounds.length, toGo = Math.max(0, state.target - t[i]);
+    var a = toGo === 0 ? "Reached " + state.target : toGo + " points to go";
+    if (n > 0 && max > 0) {
+      if (t[i] === max) {
+        var second = Math.max.apply(null, t.filter(function (_, k) { return k !== i; }));
+        a += second === max ? " · tied for the lead" : " · leads by " + (max - second);
+      } else a += " · " + (max - t[i]) + " to catch the leader";
+    }
+    var b = "";
+    if (n > 0) {
+      var avg = t[i] / n;
+      b = "avg " + fmt(avg) + "/round";
+      if (n >= 4) {
+        var last = state.rounds.slice(-3).reduce(function (s, r) { return s + (r[i] || 0); }, 0) / 3;
+        b += " · last 3: " + fmt(last);
+      }
+      if (toGo > 0 && avg > 0) { var need = Math.ceil(toGo / avg); b += " · about " + need + " more round" + (need === 1 ? "" : "s"); }
+    }
+    return '<div class="stats"><div>' + a + "</div>" + (b ? "<div>" + b + "</div>" : "") + "</div>";
+  }
+
+  function niceStep(maxVal) {
+    var steps = [5, 10, 20, 25, 50, 100, 200];
+    for (var k = 0; k < steps.length; k++) if (maxVal / steps[k] <= 5) return steps[k];
+    return 200;
+  }
+
+  function chartHtml() {
+    var n = state.rounds.length;
+    if (!n) return "";
+    var mode = state.chartMode === "round" ? "round" : "total";
+    var W = 360, H = 230, L = 36, R = 14, T = 12, B = 26;
+    var series = state.players.map(function (_, i) {
+      var pts = [], run = 0;
+      if (mode === "total") pts.push(0);
+      state.rounds.forEach(function (r) { var v = r[i] || 0; run += v; pts.push(mode === "total" ? run : v); });
+      return pts;
+    });
+    var xMin = mode === "total" ? 0 : 1, xMax = Math.max(n, xMin + 1);
+    var maxVal = Math.max.apply(null, [].concat.apply([], series));
+    var yMax = mode === "total" ? Math.max(state.target, maxVal) : Math.max(10, maxVal);
+    var step = niceStep(yMax);
+    yMax = Math.ceil(yMax / step) * step;
+    function X(v) { return L + ((v - xMin) / (xMax - xMin)) * (W - L - R); }
+    function Y(v) { return T + (1 - v / yMax) * (H - T - B); }
+    var g = "";
+    for (var v = 0; v <= yMax; v += step) {
+      g += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '"/>' +
+           '<text class="tick" x="' + (L - 6) + '" y="' + (Y(v) + 3.5).toFixed(1) + '" text-anchor="end">' + v + "</text>";
+    }
+    var every = Math.ceil(n / 8);
+    for (var r = xMin; r <= n; r += (r === 0 ? 1 : every)) {
+      if (r !== 0 && (r - 1) % every !== 0 && mode === "round") continue;
+      g += '<text class="tick" x="' + X(r).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + r + "</text>";
+    }
+    if (mode === "total") {
+      g += '<line class="target" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(state.target).toFixed(1) + '" y2="' + Y(state.target).toFixed(1) + '"/>' +
+           '<text class="tick" x="' + (L + 4) + '" y="' + (Y(state.target) - 4).toFixed(1) + '">Target ' + state.target + "</text>";
+    }
+    var lines = series.map(function (pts, i) {
+      var col = "var(--c" + (i % 8) + ")", dash = i >= 8 ? ' stroke-dasharray="5 3"' : "";
+      var xs = pts.map(function (val, k) { return [X(xMin + k), Y(val)]; });
+      var path = xs.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+      var dots = xs.map(function (p, k) {
+        return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + (k === xs.length - 1 ? 4 : 2.5) + '" style="fill:' + col + '"/>';
+      }).join("");
+      return '<polyline class="line" points="' + path + '" style="stroke:' + col + '"' + dash + "/>" + dots;
+    }).join("");
+    var legend = state.players.map(function (p, i) {
+      return '<span><i style="background:var(--c' + (i % 8) + ')"></i>' + esc(p) + "</span>";
+    }).join("");
+    var label = mode === "total" ? "Total score after each round" : "Points scored in each round";
+    return '<section class="card chart" aria-label="Score chart"><h2>Trend</h2>' +
+      '<div class="seg"><button type="button" data-act="chartmode" data-mode="total" aria-pressed="' + (mode === "total") + '">Total score</button>' +
+      '<button type="button" data-act="chartmode" data-mode="round" aria-pressed="' + (mode === "round") + '">Points per round</button></div>' +
+      '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + label + ' for each player. The table below lists the same numbers.">' + g + lines + "</svg>" +
+      '<div class="sub">' + label + ". Round number along the bottom.</div>" +
+      '<div class="legend">' + legend + "</div></section>";
   }
 
   function entryHtml() {
@@ -185,7 +281,7 @@ button[aria-pressed="true"] { background: var(--good); color: var(--accent-ink);
     var t = totals();
     app.style.display = "flex"; app.style.flexDirection = "column"; app.style.gap = "16px";
     if (editing) { app.innerHTML = playersHtml(); return; }
-    app.innerHTML = banner(t) + boardHtml(t) + entryHtml() + historyHtml() + rulesHtml();
+    app.innerHTML = banner(t) + boardHtml(t) + entryHtml() + chartHtml() + historyHtml() + rulesHtml();
   }
 
   function setBonusButton(i) {
@@ -240,6 +336,7 @@ button[aria-pressed="true"] { background: var(--good); color: var(--accent-ink);
     else if (act === "addplayer") { state.players.push("Player " + (state.players.length + 1)); save(); render(); }
     else if (act === "remove") { state.players.splice(i, 1); clearDraft(); save(); render(); }
     else if (act === "done") { editing = false; render(); }
+    else if (act === "chartmode") { state.chartMode = b.dataset.mode === "round" ? "round" : "total"; save(); render(); }
     else if (act === "newplayers") {
       if (b.dataset.armed) { state.players = ["Player 1", "Player 2", "Player 3"]; state.rounds = []; clearDraft(); editing = true; save(); render(); window.scrollTo(0, 0); }
       else { b.dataset.armed = "1"; b.textContent = "Tap again to clear scores and players"; }
